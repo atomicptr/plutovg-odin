@@ -1,0 +1,15 @@
+cmake_minimum_required(VERSION 3.15)
+project(pluto_odin LANGUAGES C)
+
+if(WIN32 AND NOT MSVC)
+    message(FATAL_ERROR "Windows archives require the MSVC toolchain, not MinGW.")
+endif()
+
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib/$<CONFIG>")
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+set(PLUTOVG_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(PLUTOSVG_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(PLUTOSVG_ENABLE_FREETYPE OFF CACHE BOOL "" FORCE)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+add_subdirectory("${CMAKE_CURRENT_LIST_DIR}/../deps/plutovg" deps/plutovg)
+add_subdirectory("${CMAKE_CURRENT_LIST_DIR}/../deps/plutosvg" deps/plutosvg)

@@ -1,0 +1,92 @@
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    if: github.ref == 'refs/heads/master'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-22.04
+            target: linux_amd64
+          - runner: ubuntu-22.04-arm
+            target: linux_arm64
+          - runner: macos-15
+            target: darwin_arm64
+          - runner: windows-2022
+            target: windows_amd64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - if: runner.os != 'Windows'
+        shell: bash
+        env:
+          CC: clang
+        run: bash ./build.sh
+
+      - if: runner.os == 'Windows'
+        shell: bash
+        env:
+          CMAKE_GENERATOR: Visual Studio 17 2022
+          CMAKE_GENERATOR_TOOLSET: ClangCL
+        run: bash ./build.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: archives-${{ matrix.target }}
+          path: |
+            plutovg/lib/${{ matrix.target }}/
+            plutosvg/lib/${{ matrix.target }}/
+          if-no-files-found: error
+          retention-days: 7
+
+  pull-request:
+    needs: build
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: master
+          fetch-depth: 0
+          lfs: true
+
+      - shell: bash
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          if [[ "$(git rev-parse HEAD)" != "$SOURCE_SHA" ]]; then
+            echo "master changed during the build. Run this workflow again." >&2
+            exit 1
+          fi
+
+      - uses: actions/download-artifact@v5
+        with:
+          pattern: archives-*
+          merge-multiple: true
+
+      - uses: peter-evans/create-pull-request@v8
+        with:
+          base: master
+          branch: automation/build-libs
+          commit-message: "build: update static libraries"
+          title: "build: update static libraries"
+          body: |
+            Built static libraries from ${{ github.sha }}.
+
+            ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          add-paths: |
+            plutovg/lib/**
+            plutosvg/lib/**
+          sign-commits: false
